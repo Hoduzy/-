@@ -1,0 +1,702 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>미쿠 캠</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="미쿠 캠">
+<style>
+/* Layout: one full-screen stage; a floating dock at the bottom opens a sheet of controls. Single dark-stage look by choice. */
+:root{
+  --ground:#0d1426; --ground2:#16244a; --glow:#1f4b6e;
+  --ink:#eef2fb; --mute:#9eabcc; --line:#2b3a63;
+  --chip:#1b2647; --chipHi:#26345f;
+  --leek:#39d0c8; --leekInk:#04201e; --ribbon:#ff5fa2; --ribbonInk:#2b0716;
+  --paper:#ffffffee; --paperInk:#26203a;
+  --display:"Jua","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+  --body:"Gowun Dodum","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+  color-scheme:dark;
+}
+[hidden]{display:none!important}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--body);font-size:15px;overflow:hidden;
+  -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:none}
+#stage{position:fixed;inset:0;overflow:hidden;
+  background:radial-gradient(ellipse at 50% 112%,var(--glow) 0%,var(--ground2) 42%,var(--ground) 100%)}
+#stage.bg-pink{background:radial-gradient(ellipse at 50% 105%,#ffd3e7 0%,#ffe9f3 55%,#fff7fb 100%)}
+#stage.bg-mint{background:radial-gradient(ellipse at 50% 105%,#c9f3ee 0%,#e6faf7 55%,#f7fffe 100%)}
+#stage.bg-desk{background:linear-gradient(#2a2f3a 0%,#2a2f3a 72%,#6b4f3a 72%,#5a4231 100%)}
+#stars{position:absolute;inset:0;pointer-events:none}
+#stage:not(.bg-night) #stars{display:none}
+#cv{position:absolute;inset:0;width:100%;height:100%;display:block}
+
+/* first-run card */
+#intro{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));z-index:20}
+.card{width:100%;max-width:420px;background:#121b36f2;border:1px solid var(--line);border-radius:22px;padding:26px 22px;text-align:center;
+  box-shadow:0 18px 50px #0008}
+.card h1{font-family:var(--display);font-weight:400;font-size:30px;margin:0 0 6px;letter-spacing:.5px;text-wrap:balance}
+.card h1 span{color:var(--leek)}
+.card p{margin:0 0 18px;color:var(--mute);line-height:1.65;font-size:14.5px}
+.btn{appearance:none;border:0;border-radius:14px;padding:13px 16px;font:inherit;font-size:16px;font-weight:700;cursor:pointer;
+  background:var(--chip);color:var(--ink);width:100%;touch-action:manipulation}
+.btn.main{background:var(--leek);color:var(--leekInk)}
+.btn:focus-visible,.chip:focus-visible,.dockBtn:focus-visible{outline:3px solid var(--ribbon);outline-offset:2px}
+#msg{margin-top:12px;font-size:13px;color:var(--mute);min-height:18px;line-height:1.5}
+#msg.err{color:#ff9fb3}
+.fine{margin-top:14px;font-size:12px;color:var(--mute);opacity:.85;line-height:1.5}
+
+/* speech bubble */
+#bubble{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 18px);transform:translate(-50%,8px) scale(.96);
+  max-width:min(560px,86vw);width:max-content;background:var(--paper);color:var(--paperInk);border:2.5px solid var(--leek);
+  border-radius:20px;padding:11px 18px;font-size:17px;line-height:1.55;text-align:center;word-break:keep-all;
+  box-shadow:0 8px 24px #0005;opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;z-index:8}
+#bubble.show{opacity:1;transform:translate(-50%,0) scale(1)}
+
+/* timer pill */
+#timer{position:fixed;left:calc(max(16px,env(safe-area-inset-left,0px)));top:calc(env(safe-area-inset-top,0px) + 16px);
+  background:#0d1426cc;border:1px solid var(--line);border-radius:999px;padding:7px 14px;font-size:15px;
+  font-variant-numeric:tabular-nums;z-index:7;display:flex;gap:8px;align-items:center}
+#timer b{font-family:var(--display);font-weight:400;color:var(--leek)}
+#timer.rest b{color:var(--ribbon)}
+
+/* dock */
+#dock{position:fixed;right:calc(max(16px,env(safe-area-inset-right,0px)));bottom:calc(env(safe-area-inset-bottom,0px) + 16px);
+  display:flex;gap:10px;z-index:9}
+.dockBtn{width:58px;height:58px;border-radius:50%;border:1px solid var(--line);background:#141e3bdd;color:var(--ink);
+  font:inherit;font-size:12.5px;font-weight:700;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+  cursor:pointer;box-shadow:0 6px 18px #0006;touch-action:manipulation;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+.dockBtn svg{width:22px;height:22px}
+.dockBtn.on{background:var(--leek);color:var(--leekInk);border-color:var(--leek)}
+
+/* typing bar */
+#say{position:fixed;left:0;right:0;bottom:0;padding:12px max(16px,env(safe-area-inset-right,0px)) calc(env(safe-area-inset-bottom,0px) + 12px) max(16px,env(safe-area-inset-left,0px));
+  background:#0d1426f2;border-top:1px solid var(--line);display:flex;gap:10px;z-index:12}
+#sayIn{flex:1;min-width:0;border:2px solid var(--leek);border-radius:14px;padding:11px 14px;font:inherit;font-size:17px;
+  background:var(--paper);color:var(--paperInk);outline:none;-webkit-user-select:text;user-select:text}
+#say .btn{width:auto;padding:11px 18px}
+
+/* sheet */
+#sheet{position:fixed;left:0;right:0;bottom:0;max-height:72%;overflow-y:auto;-webkit-overflow-scrolling:touch;touch-action:pan-y;
+  background:#0f1730f7;border-top:1px solid var(--line);border-radius:22px 22px 0 0;z-index:11;
+  padding:8px max(16px,env(safe-area-inset-right,0px)) calc(env(safe-area-inset-bottom,0px) + 20px) max(16px,env(safe-area-inset-left,0px));
+  box-shadow:0 -12px 40px #0008}
+.grab{width:44px;height:5px;border-radius:3px;background:var(--line);margin:4px auto 6px}
+.sheetHead{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:4px 0 2px}
+.sheetHead h2{font-family:var(--display);font-weight:400;font-size:22px;margin:0}
+.close{width:auto;padding:8px 14px;font-size:14px}
+.sec{margin-top:14px}
+.sec h3{font-size:12.5px;letter-spacing:.08em;color:var(--mute);margin:0 0 8px;font-weight:700}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{border:1px solid transparent;background:var(--chip);color:var(--ink);font:inherit;font-size:15px;padding:9px 14px;border-radius:999px;
+  cursor:pointer;touch-action:manipulation}
+.chip.on{background:var(--leek);color:var(--leekInk);font-weight:700}
+.chip.pink.on{background:var(--ribbon);color:var(--ribbonInk)}
+.grid2{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px 18px}
+.row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:6px 0;min-width:0}
+.row span{min-width:0}
+.sw{appearance:none;-webkit-appearance:none;width:46px;height:28px;border-radius:999px;background:var(--chipHi);position:relative;flex:none;cursor:pointer;transition:background .15s}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;transition:left .15s}
+.sw:checked{background:var(--leek)}
+.sw:checked::after{left:21px}
+.note{font-size:12.5px;color:var(--mute);line-height:1.55;margin:8px 0 0}
+#cam{position:fixed;left:calc(max(16px,env(safe-area-inset-left,0px)));bottom:calc(env(safe-area-inset-bottom,0px) + 16px);
+  width:160px;aspect-ratio:4/3;object-fit:cover;border-radius:14px;border:2px solid var(--leek);z-index:8;background:#000}
+#cam.mirror{transform:scaleX(-1)}
+#camState{position:fixed;left:calc(max(16px,env(safe-area-inset-left,0px)));bottom:calc(env(safe-area-inset-bottom,0px) + 16px);
+  z-index:9;font-size:13px;background:#0d1426d9;border:1px solid var(--line);border-radius:999px;padding:6px 12px;color:var(--mute)}
+#camState.ok{color:var(--leek);border-color:var(--leek)}
+#cam:not([hidden]) ~ #camState{bottom:calc(env(safe-area-inset-bottom,0px) + 16px + 128px)}
+@media (prefers-reduced-motion:reduce){#bubble,.sw,.sw::after{transition:none}}
+</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Dodum&family=Jua&display=swap">
+</head>
+<body>
+
+<div id="stage" class="bg-night">
+  <canvas id="stars"></canvas>
+  <canvas id="cv"></canvas>
+</div>
+
+<div id="intro">
+  <div class="card">
+    <h1>미쿠 <span>패드</span></h1>
+    <p>공식 배포처에서 받은 모델 <b>zip 파일</b>을 골라주세요.<br>한 번 고르면 이 아이패드에서는 다음부터 바로 나와요.</p>
+    <input type="file" id="zipIn" accept=".zip,application/zip" hidden>
+    <button class="btn main" id="pickBtn">zip 파일 고르기</button>
+    <div id="msg"></div>
+    <div class="fine">모델은 이 기기 안에서만 열리고 어디에도 올라가지 않아요.<br>Art Ruby_呜哔うび · Live2D 慈善小霓 · 비공식 팬 모델 · 개인·비상업 용도</div>
+  </div>
+</div>
+
+<div id="bubble" role="status" aria-live="polite"></div>
+<video id="cam" playsinline muted autoplay hidden></video>
+<div id="camState" hidden>얼굴 찾는 중…</div>
+<div id="timer" hidden><span id="timerLabel">집중</span><b id="timerTime">25:00</b></div>
+
+<div id="dock" hidden>
+  <button class="dockBtn" id="camBtn" aria-label="카메라로 따라하기">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h3l2-3h8l2 3h3v13H3z"/><circle cx="12" cy="13" r="4"/></svg>카메라</button>
+  <button class="dockBtn" id="sayBtn" aria-label="말 시키기">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg>말하기</button>
+  <button class="dockBtn" id="timerBtn" aria-label="공부 타이머">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9 2h6"/></svg>타이머</button>
+  <button class="dockBtn" id="menuBtn" aria-label="메뉴">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>메뉴</button>
+</div>
+
+<form id="say" hidden>
+  <input id="sayIn" maxlength="120" placeholder="미쿠가 읽어줄 말을 적어줘" autocomplete="off" enterkeyhint="send">
+  <button class="btn main" type="submit">읽기</button>
+</form>
+
+<div id="sheet" hidden>
+  <div class="grab"></div>
+  <div class="sheetHead"><h2>미쿠 꾸미기</h2><button class="btn close" id="sheetClose">닫기</button></div>
+  <div class="sec"><h3>움직임</h3><div class="chips" id="modeChips"></div></div>
+  <div class="sec"><h3>포즈</h3><div class="chips" id="poseChips"></div></div>
+  <div class="sec"><h3>표정</h3><div class="chips" id="faceChips"></div></div>
+  <div class="sec"><h3>들고 있는 것</h3><div class="chips" id="toolChips"></div></div>
+  <div class="sec"><h3>옷 · 기타</h3><div class="chips" id="etcChips"></div></div>
+  <div class="sec"><h3>혼잣말</h3><div class="chips" id="chatChips"></div></div>
+  <div class="sec"><h3>배경</h3><div class="chips" id="bgChips"></div></div>
+  <div class="sec"><h3>카메라 따라하기</h3>
+    <div class="grid2">
+      <label class="row"><span>거울처럼 움직이기</span><input type="checkbox" class="sw" id="optMirror"></label>
+      <label class="row"><span>내 얼굴 작게 보기</span><input type="checkbox" class="sw" id="optPreview"></label>
+      <label class="row"><span>상체만 크게 (버튜버 화면)</span><input type="checkbox" class="sw" id="optBust"></label>
+      <label class="row"><span>고개 좌우 반대로</span><input type="checkbox" class="sw" id="optFlipX"></label>
+      <label class="row"><span>고개 위아래 반대로</span><input type="checkbox" class="sw" id="optFlipY"></label>
+      <label class="row"><span>고개 기울기 반대로</span><input type="checkbox" class="sw" id="optFlipZ"></label>
+    </div>
+    <div class="chips" style="margin-top:10px" id="gainChips"></div>
+    <div class="chips" style="margin-top:10px"><button class="chip" id="calib">지금 자세를 정면으로</button></div>
+    <p class="note">카메라 영상은 이 아이패드 안에서만 쓰이고 어디에도 저장하거나 보내지 않아요. 미쿠가 반대로 움직이면 위의 "반대로" 스위치를 켜주세요.</p>
+  </div>
+  <div class="sec"><h3>설정</h3>
+    <div class="grid2">
+      <label class="row"><span>목소리 내기</span><input type="checkbox" class="sw" id="optVoice"></label>
+      <label class="row"><span>표정 자동으로 바꾸기</span><input type="checkbox" class="sw" id="optAutoFace"></label>
+      <label class="row"><span>포즈 자동으로 바꾸기</span><input type="checkbox" class="sw" id="optAutoPose"></label>
+      <label class="row"><span>머리 위 이름표 숨기기</span><input type="checkbox" class="sw" id="optCredit"></label>
+      <label class="row"><span>화면 꺼짐 막기</span><input type="checkbox" class="sw" id="optWake"></label>
+      <label class="row"><span>선명하게 (메모리 더 씀)</span><input type="checkbox" class="sw" id="optHiq"></label>
+    </div>
+    <div class="chips" style="margin-top:10px">
+      <button class="chip" id="voiceTest">목소리 테스트</button>
+      <button class="chip" id="resetPos">위치 초기화</button>
+      <button class="chip" id="repick">모델 다시 고르기</button>
+    </div>
+    <p class="note">미쿠를 톡 치면 반응해요. 끌어서 옮기고, 두 손가락으로 크기를 바꿔요. 빈 곳을 터치하면 그쪽을 쳐다봐요.<br>"선명하게"는 모델을 다시 불러올 때 적용돼요.</p>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/pixi.js@7.4.3/dist/pixi.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@hazart-pkg/live2d-core@1.0.1/live2dcubismcore.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display-lipsyncpatch@0.5.0-ls-8/dist/cubism4.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const rnd=(a,b)=>a+Math.random()*(b-a), clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const pick = arr => arr[Math.floor(Math.random()*arr.length)];
+
+// ---------- labels ----------
+const POSES={'Yandere':'얀데레','Hand on Chest Pose':'손 가슴에','Hold Staff (Both Hands)':'양손 지팡이','Hold Staff2':'지팡이 들기',
+  'Item Behind Back':'뒤에 숨기기','Item Behind Back2':'뒤에 숨기기 2','Open Arms':'팔 벌리기','Overhead Staff Raise':'지팡이 번쩍'};
+const FACES={'Blush':'볼 빨개짐','side Blush':'옆 볼터치','Fanged Smile':'웃음','Squinny Eyes':'>< 눈','Wide Mouth':'큰 입',
+  'Sweat Drop':'땀방울','Tears':'눈물','Crying':'울음','Gloom':'어두운 얼굴','Dead Eyes':'동태눈','Uniform Magic Eyes':'마법 눈'};
+const TOOLS={'staff (upside down)':'거꾸로 지팡이','axe':'도끼','baseball bat':'야구방망이','crowbar':'쇠지렛대','hammer':'망치','hoe':'괭이',
+  'pliers':'펜치','saw':'톱','scissors':'가위','shovel':'삽','stun baton':'전기봉','utility knife':'커터칼','wrench':'렌치'};
+const ETC={'School Uniform':'교복','Pink Paint':'핑크 페인트','Watermark':'큰 워터마크 숨기기'};
+const HOLD_POSES=['Hold Staff2'];
+const GENTLE=['Blush','side Blush','Fanged Smile','Squinny Eyes','Sweat Drop'];
+const AUTO_POSES=[null,null,'Hand on Chest Pose','Open Arms','Hold Staff2','Item Behind Back','Hold Staff (Both Hands)','Overhead Staff Raise'];
+const MOOD={'웃음':['Fanged Smile'],'부끄':['Blush','side Blush'],'놀람':['Wide Mouth'],'슬픔':['Tears'],'보통':[]};
+
+// ---------- lines (no AI on the iPad: hand-written, time-aware) ----------
+function hourPart(){ const h=new Date().getHours(); return h<5?'night':h<11?'morning':h<14?'noon':h<18?'afternoon':h<22?'evening':'night'; }
+const GREET={
+  morning:[['웃음','좋은 아침! 오늘도 같이 힘내자.'],['보통','일어났어? 물 한 컵 먼저 마시자.']],
+  noon:[['웃음','점심은 먹었어? 밥은 꼭 챙겨 먹어야 해.'],['보통','오후도 같이 있어줄게!']],
+  afternoon:[['웃음','왔구나! 오늘 하루는 어땠어?'],['부끄','기다리고 있었어. 헤헤.']],
+  evening:[['웃음','저녁이다! 오늘도 수고 많았어.'],['보통','숙제는 다 했어? 같이 해치우자.']],
+  night:[['놀람','이렇게 늦게까지 안 자는 거야?'],['보통','밤이니까 너무 무리하지 말기!']]
+};
+const TAP=[['놀람','앗, 깜짝이야!'],['부끄','헤헤, 간지러워.'],['웃음','불렀어? 나 여기 있어!'],['웃음','오늘도 파 이야기 할까?'],
+  ['부끄','그렇게 쳐다보면 부끄럽잖아.'],['놀람','왜, 왜? 무슨 일 있어?'],['웃음','같이 노래 한 곡 할래?'],['보통','나 계속 여기서 응원하고 있을게.']];
+const CHATTER={
+  any:[['보통','잠깐 기지개 한 번 켜자. 쭉!'],['웃음','물 마셨어? 한 모금만 마시고 오자.'],['보통','화면 너무 오래 보면 눈 아파. 먼 데 한 번 보기!'],
+    ['웃음','지금 집중 잘 되고 있는 것 같아. 멋져!'],['부끄','심심해… 나 좀 봐줘.'],['웃음','파 들어간 요리 먹고 싶다.'],
+    ['보통','자세 바르게! 허리 펴고.'],['웃음','오늘 들은 노래 중에 제일 좋았던 거 뭐야?'],['보통','조금만 더 하면 끝이야. 힘내!']],
+  morning:[['웃음','아침 공기 상쾌하다! 창문 한 번 열어볼까?']],
+  noon:[['보통','밥 먹고 바로 누우면 안 돼!']],
+  afternoon:[['보통','오후엔 졸리지? 세수 한 번 하고 오자.']],
+  evening:[['웃음','저녁 먹었어? 맛있는 거 먹었으면 좋겠다.']],
+  night:[['슬픔','벌써 이 시간이야… 이제 슬슬 자야지.'],['보통','내일을 위해 오늘은 여기까지 하는 거 어때?']]
+};
+const TIMER_LINES={
+  start:[['웃음','좋아, 25분 집중 시작! 나도 조용히 응원할게.']],
+  restStart:[['웃음','25분 끝! 수고했어. 5분 쉬자.']],
+  restEnd:[['보통','쉬는 시간 끝! 다시 힘내보자.']],
+  stop:[['보통','타이머 껐어. 고생했어!']]
+};
+
+// ---------- settings ----------
+const S = { mode:'auto', autoFace:true, autoPose:true, voice:true, credit:true, wake:false, hiq:false, chatter:6, bg:'bg-night',
+  mirror:true, preview:true, bust:true, flipX:false, flipY:false, flipZ:false, gain:1 };
+try{ Object.assign(S, JSON.parse(localStorage.getItem('mikuCam')||'{}')); }catch(e){}
+function saveS(){ try{ localStorage.setItem('mikuCam', JSON.stringify(S)); }catch(e){} }
+
+// ---------- model zip kept on this iPad (IndexedDB) ----------
+function idb(){ return new Promise((ok,no)=>{ try{ const r=indexedDB.open('mikuCam',1); r.onupgradeneeded=()=>r.result.createObjectStore('f'); r.onsuccess=()=>ok(r.result); r.onerror=()=>no(r.error);}catch(e){no(e);} }); }
+async function saveZip(blob){ try{ const db=await idb(); await new Promise((ok,no)=>{ const t=db.transaction('f','readwrite'); t.objectStore('f').put(blob,'zip'); t.oncomplete=ok; t.onerror=()=>no(t.error); }); }catch(e){} }
+async function loadZip(){ try{ const db=await idb(); return await new Promise(ok=>{ const r=db.transaction('f').objectStore('f').get('zip'); r.onsuccess=()=>ok(r.result||null); r.onerror=()=>ok(null); }); }catch(e){ return null; } }
+
+// ---------- read model files straight from memory ----------
+const BLOBMAP=new Map(); const _cu=URL.createObjectURL.bind(URL);
+URL.createObjectURL=o=>{ const u=_cu(o); if(o instanceof Blob) BLOBMAP.set(u,o); return u; };
+function installLoaders(){
+  if(installLoaders.done) return; installLoaders.done=true;
+  PIXI.live2d.Live2DLoader.middlewares.unshift(async(ctx,next)=>{
+    const u=ctx.settings?ctx.settings.resolveURL(ctx.url):ctx.url; const b=BLOBMAP.get(u); if(!b) return next();
+    ctx.result = ctx.type==='json' ? JSON.parse(await b.text()) : await b.arrayBuffer();
+  });
+  const orig=PIXI.Texture.fromURL;
+  PIXI.Texture.fromURL=function(url,opts){ const b=BLOBMAP.get(url); if(!b) return orig.call(this,url,opts);
+    return createImageBitmap(b,{premultiplyAlpha:'premultiply'}).then(bmp=>PIXI.Texture.from(bmp,{alphaMode:PIXI.ALPHA_MODES.PMA})); };
+  const R=PIXI.live2d.CubismRenderer_WebGL.prototype, init=R.initialize;
+  R.initialize=function(m,n){ return init.call(this,m,Math.max(n||1,4)); };
+  PIXI.live2d.Live2DModel.registerTicker(PIXI.Ticker);
+}
+async function downscale(blob,max){
+  const bmp=await createImageBitmap(blob);
+  if(bmp.width<=max&&bmp.height<=max){ bmp.close&&bmp.close(); return blob; }
+  const k=max/Math.max(bmp.width,bmp.height), c=document.createElement('canvas');
+  c.width=Math.round(bmp.width*k); c.height=Math.round(bmp.height*k);
+  c.getContext('2d').drawImage(bmp,0,0,c.width,c.height); bmp.close&&bmp.close();
+  const out=await new Promise(r=>c.toBlob(r,'image/png')); c.width=c.height=1; return out;
+}
+const base=p=>p.split('/').pop();
+let EXP={};
+async function prepare(zipBlob){
+  const zip=await JSZip.loadAsync(zipBlob), entries=[];
+  for(const [p,e] of Object.entries(zip.files)) if(!e.dir&&!p.includes('__MACOSX')) entries.push({path:p,e});
+  const set=entries.find(x=>x.path.endsWith('.model3.json'));
+  if(!set) throw new Error('이 zip 안에서 모델을 찾지 못했어요. 공식 배포처에서 받은 zip이 맞는지 확인해 주세요.');
+  const dir=set.path.slice(0,set.path.lastIndexOf('/')+1);
+  const local=entries.filter(x=>x.path.startsWith(dir)).map(x=>({rel:x.path.slice(dir.length),e:x.e}));
+  const json=JSON.parse(await set.e.async('text'));
+  let idle=null; const vt=local.find(x=>x.rel.endsWith('.vtube.json'));
+  if(vt){ try{ idle=JSON.parse(await vt.e.async('text')).FileReferences.IdleAnimation||null; }catch(e){} }
+  if(!idle){ const m=local.find(x=>x.rel.endsWith('.motion3.json')); idle=m&&m.rel; }
+  if(idle) json.FileReferences.Motions={Idle:[{File:idle}]};
+  EXP={};
+  for(const x of local.filter(x=>x.rel.endsWith('.exp3.json'))){ try{ EXP[base(x.rel).replace('.exp3.json','')]=JSON.parse(await x.e.async('text')).Parameters||[]; }catch(e){} }
+  const tex=new Set(json.FileReferences.Textures||[]), files=[]; let n=0;
+  const size = S.hiq ? 2048 : 1536;
+  for(const x of local){
+    let blob;
+    if(x.e===set.e) blob=new Blob([JSON.stringify(json)],{type:'application/json'});
+    else if(tex.has(x.rel)){ n++; msg(`준비 중… ${n}/${tex.size}`); blob=await downscale(await x.e.async('blob'),size); }
+    else if(/\.(moc3|physics3\.json|cdi3\.json|motion3\.json|pose3\.json|userdata3\.json)$/.test(x.rel)) blob=await x.e.async('blob');
+    else continue;
+    const f=new File([blob],base(x.rel)); Object.defineProperty(f,'webkitRelativePath',{value:x.rel}); files.push(f);
+  }
+  return files;
+}
+function msg(t,err){ $('msg').textContent=t; $('msg').className=err?'err':''; }
+
+// ---------- stage ----------
+let app, model, core, paramInfo={};
+const st={ pose:null, tool:null, faces:new Set(), etc:new Set(), order:[], cur:{}, touched:new Set(),
+  gaze:{x:0,y:0,tx:0,ty:0,next:0}, eye:{x:0,y:0}, tilt:{v:0,t:0,next:0}, blink:{next:0,t:-1,dbl:false},
+  touch:{x:0,y:0,until:0}, react:{until:0}, smile:{v:.6,t:.6,next:0},
+  autoFaceName:null, autoFaceOff:0, autoFaceNext:0, autoPoseNext:0, mood:[], moodOff:0, mouth:0, talkUntil:0 };
+
+async function startModel(zipBlob){
+  $('pickBtn').disabled=true;
+  try{
+    installLoaders();
+    msg('여는 중…');
+    const files=await prepare(zipBlob);
+    msg('미쿠 불러오는 중…');
+    if(!app) app=new PIXI.Application({view:$('cv'),resizeTo:$('stage'),backgroundAlpha:0,antialias:true,preserveDrawingBuffer:true,
+      resolution:Math.min(window.devicePixelRatio||1,2),autoDensity:true});
+    if(model){ app.stage.removeChild(model); model.destroy(); model=null; }
+    model=await PIXI.live2d.Live2DModel.from(files,{autoHitTest:false,autoFocus:false});
+    model.anchor.set(.5,.5); app.stage.addChild(model);
+    const im=model.internalModel; core=im.coreModel; im.eyeBlink=undefined;
+    const BP=PIXI.live2d.BreathParameterData;
+    im.breath.setParameters([new BP('ParamAngleX',0,2,6.5,.5),new BP('ParamAngleY',0,1.5,3.5,.5),new BP('ParamAngleZ',0,1.5,5.5,.5),
+      new BP('ParamBodyAngleX',0,1,15.5,.5),new BP('ParamBreath',.5,.5,3.2,.5)]);
+    paramInfo={}; st.cur={}; st.touched=new Set();
+    const ids=core._parameterIds||[];
+    for(let i=0;i<ids.length;i++) paramInfo[ids[i]]={i,def:core.getParameterDefaultValue(i),min:core.getParameterMinimumValue(i),max:core.getParameterMaximumValue(i)};
+    im.on('afterMotionUpdate',drive);
+    installCreditHide();
+    if(EXP['Watermark'] && !st.etc.has('Watermark')){ st.etc.add('Watermark'); st.order.push('Watermark'); }
+    fit();
+    $('intro').hidden=true; $('dock').hidden=false;
+    buildSheet();
+    st.autoPoseNext=performance.now()+15000; st.autoFaceNext=performance.now()+5000; scheduleChatter();
+    const [m,t]=pick(GREET[hourPart()]); say(t,m);
+  }catch(err){
+    console.error(err);
+    $('intro').hidden=false;
+    msg((err&&err.message)||String(err),true);
+  }finally{ $('pickBtn').disabled=false; }
+}
+
+// the creator allowed hiding the small name tag: skip its pieces in the visible pass only
+function installCreditHide(){
+  const d=core._model.drawables, r=model.internalModel.renderer;
+  const k77=d.ids.indexOf('ArtMesh77');
+  const boxes=new Set(['ArtMesh198','ArtMesh385'].map(x=>d.ids.indexOf(x)).filter(i=>i>=0));
+  const mainPass=()=>r.getClippingContextBufferForMask()==null;
+  const getOp=core.getDrawableOpacity.bind(core);
+  core.getDrawableOpacity=i=>(S.credit&&boxes.has(i)&&mainPass())?0:getOp(i);
+  if(k77<0) return;
+  const getIdx=core.getDrawableVertexIndices.bind(core), getCnt=core.getDrawableVertexIndexCount.bind(core), TH=2.2;
+  const filtered=()=>{ const idx=getIdx(k77), pos=d.vertexPositions[k77], out=[];
+    for(let t=0;t<idx.length;t+=3){ const a=idx[t],b=idx[t+1],c=idx[t+2]; if(pos[a*2+1]>TH&&pos[b*2+1]>TH&&pos[c*2+1]>TH) continue; out.push(a,b,c); }
+    return new Uint16Array(out); };
+  core.getDrawableVertexIndices=i=>(i===k77&&S.credit&&mainPass())?filtered():getIdx(i);
+  core.getDrawableVertexIndexCount=i=>(i===k77&&S.credit&&mainPass())?filtered().length:getCnt(i);
+}
+
+function fit(){
+  if(!model) return; app.resize();
+  const W=app.screen.width,H=app.screen.height, w=model.internalModel.originalWidth, h=model.internalModel.originalHeight;
+  if(S.bust && trk.on){
+    // VTuber framing: top of the head near the top, waist at the bottom edge
+    const s=H*.95/(h*.35); model.scale.set(s); model.position.set(W/2, H*.05 - h*s*.046 + h*s*.5);
+  } else {
+    const s=Math.min(H*.94/h,W*.92/w); model.scale.set(s); model.position.set(W/2,H/2+H*.03);
+  }
+}
+addEventListener('resize',()=>setTimeout(()=>{ fit(); drawStars(); },60));
+
+let lastT=performance.now();
+function setP(id,v){ const p=paramInfo[id]; if(p) core.setParameterValueByIndex(p.i,clamp(v,p.min,p.max)); }
+const defP=id=>paramInfo[id]?paramInfo[id].def:0;
+function layers(){
+  const L=[], now=performance.now();
+  if(st.pose) L.push(st.pose); if(st.tool) L.push(st.tool);
+  for(const n of st.order) if(st.faces.has(n)||st.etc.has(n)) L.push(n);
+  if(st.autoFaceName&&!st.faces.has(st.autoFaceName)) L.push(st.autoFaceName);
+  if(now<st.moodOff) for(const n of st.mood) L.push(n);
+  if(now<st.react.until){ L.push('Squinny Eyes'); L.push('Blush'); }
+  return L;
+}
+function drive(){
+  const now=performance.now(), dt=Math.min(.05,(now-lastT)/1000), t=now/1000; lastT=now;
+  const target={};
+  for(const n of layers()) for(const p of (EXP[n]||[])){ target[p.Id]=p.Value; st.touched.add(p.Id); }
+  const k=1-Math.exp(-dt*10);
+  for(const id of st.touched){ const goal=(id in target)?target[id]:defP(id), c=(id in st.cur)?st.cur[id]:defP(id), v=c+(goal-c)*k; st.cur[id]=v; setP(id,v); }
+
+  const g=st.gaze, touching=now<st.touch.until;
+  if(touching){ g.tx=st.touch.x; g.ty=st.touch.y; }
+  else if(S.mode==='auto'){ if(now>g.next){ if(Math.random()<.3){g.tx=0;g.ty=rnd(-.1,.15);} else {g.tx=rnd(-1,1);g.ty=rnd(-.6,.7);} g.next=now+rnd(1200,3800); } }
+  else { g.tx=0; g.ty=0; }
+  const kh=1-Math.exp(-dt*(touching?6:3.2)); g.x+=(g.tx-g.x)*kh; g.y+=(g.ty-g.y)*kh;
+  const ke=1-Math.exp(-dt*14); st.eye.x+=(g.tx-st.eye.x)*ke; st.eye.y+=(g.ty-st.eye.y)*ke;
+  const tl=st.tilt; if(now>tl.next){ tl.t=S.mode==='front'?0:rnd(-9,9)*(Math.random()<.5?.4:1); tl.next=now+rnd(2500,6000); }
+  tl.v+=(tl.t-tl.v)*(1-Math.exp(-dt*2));
+  const reacting=now<st.react.until, hop=reacting?Math.sin((st.react.until-now)/1000*Math.PI*3)*6:0;
+  const w=trackWeight(now), mix=(a,b)=>a*(1-w)+b*w, F=trk.f;
+  setP('ParamAngleX',mix(g.x*28+Math.sin(t*.9)*1.5, F.ax)); setP('ParamAngleY',mix(g.y*22+hop, F.ay)); setP('ParamAngleZ',mix(tl.v+g.x*g.y*-6+(reacting?8:0), F.az));
+  setP('ParamBodyAngleX',mix(g.x*7, F.ax*.35)); setP('ParamBodyAngleY',mix(g.y*3, F.ay*.25)); setP('ParamBodyAngleZ',mix(tl.v*.45+Math.sin(t*.7)*1.2, F.az*.45));
+  setP('ParamEyeBallX',mix(st.eye.x*.9, F.ex)); setP('ParamEyeBallY',mix(st.eye.y*.9, F.ey));
+  if(w>0){ setP('ParamBrowLY',F.brL); setP('ParamBrowRY',F.brR); }
+
+  const b=st.blink; let open=1;
+  if(b.t<0&&now>b.next) b.t=0;
+  if(b.t>=0){ b.t+=dt; const x=b.t/.16; open=x<.5?1-x*2:Math.min(1,(x-.5)*2);
+    if(b.t>=.16){ b.t=-1; if(!b.dbl&&Math.random()<.18){b.dbl=true;b.next=now+90;} else {b.dbl=false;b.next=now+rnd(1800,5500);} } }
+  const sq=reacting?.75:1, eo=defP('ParamEyeLOpen')||1;
+  setP('ParamEyeLOpen',mix(eo*open*sq, F.eyeL*eo)); setP('ParamEyeROpen',mix((defP('ParamEyeROpen')||1)*open*sq, F.eyeR*eo));
+
+  const sm=st.smile; if(now>sm.next){ sm.t=Math.random()<.75?rnd(.5,1):rnd(.1,.5); sm.next=now+rnd(3000,7000); }
+  sm.v+=(sm.t-sm.v)*(1-Math.exp(-dt*2));
+  let mt=0; if(now<st.talkUntil) mt=Math.max(0,Math.sin(t*17)*.5+Math.sin(t*7.3)*.35+.15);
+  st.mouth+=(mt-st.mouth)*(1-Math.exp(-dt*(mt>st.mouth?30:15)));
+  const talking=now<st.talkUntil;
+  setP('ParamMouthOpenY',reacting?.6:(talking?st.mouth:mix(st.mouth,F.mouth))); setP('ParamMouthForm',reacting?1:mix(sm.v,F.smile));
+  director(now);
+}
+function director(now){
+  const auto=S.mode==='auto';
+  if(auto&&S.autoFace){
+    if(st.autoFaceName&&now>st.autoFaceOff){ st.autoFaceName=null; st.autoFaceNext=now+rnd(4000,9000); }
+    if(!st.autoFaceName&&now>st.autoFaceNext&&st.faces.size===0){ const pool=GENTLE.filter(n=>EXP[n]); if(pool.length){ st.autoFaceName=pick(pool); st.autoFaceOff=now+rnd(2000,4500); } }
+  } else st.autoFaceName=null;
+  if(auto&&S.autoPose&&!st.tool&&!trk.on&&now>st.autoPoseNext){
+    const pool=AUTO_POSES.filter(n=>n===null||EXP[n]); let p; do{ p=pick(pool); }while(p===st.pose&&pool.length>1);
+    st.pose=p; st.autoPoseNext=now+rnd(14000,24000); refreshChips();
+  }
+}
+
+// ---------- talking (bubble + iPad's built-in voice) ----------
+let bubbleTimer=null, voiceUnlocked=false, koVoice=null;
+function findVoice(){ try{ const vs=speechSynthesis.getVoices(); koVoice=vs.find(v=>/^ko/i.test(v.lang)&&/yuna|유나/i.test(v.name))||vs.find(v=>/^ko/i.test(v.lang))||null; }catch(e){} }
+try{ findVoice(); speechSynthesis.onvoiceschanged=findVoice; }catch(e){}
+function unlockVoice(){ if(voiceUnlocked) return; voiceUnlocked=true; try{ const u=new SpeechSynthesisUtterance(' '); u.volume=0; speechSynthesis.speak(u); }catch(e){} }
+function say(text,mood){
+  const b=$('bubble'); b.textContent=text; b.classList.add('show');
+  st.mood=(MOOD[mood]||[]).filter(n=>EXP[n]); st.moodOff=performance.now()+6000;
+  const readMs=2600+text.length*130;
+  clearTimeout(bubbleTimer);
+  const t0=performance.now();
+  const done=()=>{ bubbleTimer=setTimeout(()=>{ if(b.textContent===text) b.classList.remove('show'); },Math.max(1400,readMs-(performance.now()-t0))); };
+  if(S.voice && voiceUnlocked && 'speechSynthesis' in window){
+    try{
+      speechSynthesis.cancel();
+      const u=new SpeechSynthesisUtterance(text); if(koVoice) u.voice=koVoice; u.lang='ko-KR'; u.pitch=1.45; u.rate=1.05;
+      st.talkUntil=performance.now()+30000;
+      let ended=false; const end=()=>{ if(ended) return; ended=true; st.talkUntil=0; done(); };
+      u.onend=end; u.onerror=end; speechSynthesis.speak(u);
+      setTimeout(end, readMs+6000);
+      return;
+    }catch(e){}
+  }
+  st.talkUntil=performance.now()+Math.min(readMs,4500);
+  bubbleTimer=setTimeout(()=>{ if(b.textContent===text) b.classList.remove('show'); },readMs);
+}
+
+// self-talk
+let nextChatter=Infinity;
+function scheduleChatter(){ nextChatter=S.chatter?performance.now()+S.chatter*60000*rnd(.7,1.3):Infinity; }
+setInterval(()=>{
+  if(!model||!S.chatter||!$('say').hidden) return;
+  if(performance.now()>nextChatter){ scheduleChatter(); const pool=CHATTER.any.concat(CHATTER[hourPart()]||[]); const [m,t]=pick(pool); say(t,m); }
+},5000);
+
+// ---------- touch: tap reaction, drag, pinch, look at touch ----------
+const pts=new Map(); let gesture=null;
+function alphaAt(x,y){
+  const gl=app.renderer.gl, r=app.renderer.resolution, px=Math.floor(x*r), py=Math.floor(app.view.height-y*r-1);
+  if(px<1||py<1||px>=app.view.width-1||py>=app.view.height-1) return 0;
+  const buf=new Uint8Array(36); gl.readPixels(px-1,py-1,3,3,gl.RGBA,gl.UNSIGNED_BYTE,buf);
+  let m=0; for(let i=3;i<36;i+=4) m=Math.max(m,buf[i]); return m;
+}
+function lookAt(x,y){
+  if(!model) return; const r=$('stage').getBoundingClientRect();
+  const hx=model.position.x, hy=model.position.y-model.height*.32;
+  st.touch.x=clamp((x-r.left-hx)/(r.width*.4),-1,1); st.touch.y=clamp(-(y-r.top-hy)/(r.height*.4),-1,1); st.touch.until=performance.now()+2500;
+}
+const stageEl=$('stage');
+stageEl.addEventListener('pointerdown',e=>{
+  unlockVoice(); if(!model) return;
+  stageEl.setPointerCapture(e.pointerId); pts.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  const r=stageEl.getBoundingClientRect();
+  if(pts.size===1){
+    const onModel=alphaAt(e.clientX-r.left,e.clientY-r.top)>20;
+    gesture={type:onModel?'drag':'look',x:e.clientX,y:e.clientY,px:model.position.x,py:model.position.y,moved:false,onModel};
+    if(!onModel) lookAt(e.clientX,e.clientY);
+  } else if(pts.size===2){
+    const [a,b]=[...pts.values()]; gesture={type:'pinch',d:Math.hypot(a.x-b.x,a.y-b.y),s:model.scale.x,moved:true};
+  }
+});
+stageEl.addEventListener('pointermove',e=>{
+  if(!pts.has(e.pointerId)||!gesture) return; pts.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(gesture.type==='pinch'&&pts.size>=2){ const [a,b]=[...pts.values()]; const d=Math.hypot(a.x-b.x,a.y-b.y); model.scale.set(clamp(gesture.s*d/gesture.d,.02,5)); return; }
+  const dx=e.clientX-gesture.x, dy=e.clientY-gesture.y;
+  if(Math.abs(dx)+Math.abs(dy)>8) gesture.moved=true;
+  if(gesture.type==='drag'&&gesture.moved) model.position.set(gesture.px+dx,gesture.py+dy);
+  if(gesture.type==='look') lookAt(e.clientX,e.clientY);
+});
+function endPointer(e){
+  pts.delete(e.pointerId);
+  if(gesture&&pts.size===0){
+    if(gesture.type==='drag'&&!gesture.moved){ st.react.until=performance.now()+1400; const [m,t]=pick(TAP); say(t,m); }
+    gesture=null;
+  }
+}
+stageEl.addEventListener('pointerup',endPointer); stageEl.addEventListener('pointercancel',endPointer);
+
+// ---------- sheet ----------
+function chip(label,on,fn,pink){ const b=document.createElement('button'); b.type='button'; b.className='chip'+(on?' on':'')+(pink?' pink':''); b.textContent=label; b.onclick=fn; return b; }
+function toggle(set,k){ if(set.has(k)){ set.delete(k); st.order=st.order.filter(n=>n!==k);} else { set.add(k); st.order.push(k);} }
+const holdPose=()=>{ st.autoPoseNext=performance.now()+30000; };
+function refreshChips(){
+  if($('sheet').hidden) return;
+  const fill=(id,items)=>{ const el=$(id); el.replaceChildren(...items); };
+  fill('modeChips',[['auto','자동'],['front','정면']].map(([k,l])=>chip(l,S.mode===k,()=>{ S.mode=k; st.gaze.next=0; st.tilt.next=0; saveS(); refreshChips(); })));
+  fill('poseChips',[chip('기본',!st.pose,()=>{ st.pose=null; holdPose(); refreshChips(); }),
+    ...Object.entries(POSES).filter(([k])=>EXP[k]).map(([k,l])=>chip(l,st.pose===k,()=>{ st.pose=st.pose===k?null:k; holdPose(); refreshChips(); }))]);
+  fill('faceChips',Object.entries(FACES).filter(([k])=>EXP[k]).map(([k,l])=>chip(l,st.faces.has(k),()=>{ toggle(st.faces,k); st.autoFaceName=null; refreshChips(); },true)));
+  fill('toolChips',[chip('없음',!st.tool,()=>{ st.tool=null; refreshChips(); }),
+    ...Object.entries(TOOLS).filter(([k])=>EXP[k]).map(([k,l])=>chip(l,st.tool===k,()=>{ st.tool=st.tool===k?null:k; if(st.tool&&!HOLD_POSES.includes(st.pose)) st.pose='Hold Staff2'; refreshChips(); }))]);
+  fill('etcChips',[...Object.entries(ETC).filter(([k])=>EXP[k]).map(([k,l])=>chip(l,st.etc.has(k),()=>{ toggle(st.etc,k); refreshChips(); })),
+    chip('모두 해제',false,()=>{ const wm=st.etc.has('Watermark'); st.pose=null; st.tool=null; st.faces.clear(); st.etc.clear(); st.order=[]; if(wm){st.etc.add('Watermark');st.order.push('Watermark');} st.autoFaceName=null; holdPose(); refreshChips(); })]);
+  fill('chatChips',[[0,'안 하기'],[6,'가끔'],[2,'자주']].map(([k,l])=>chip(l,S.chatter===k,()=>{ S.chatter=k; saveS(); scheduleChatter(); refreshChips(); })));
+  fill('bgChips',[['bg-night','밤하늘'],['bg-pink','핑크'],['bg-mint','민트'],['bg-desk','책상']].map(([k,l])=>chip(l,S.bg===k,()=>{ S.bg=k; saveS(); applyBg(); refreshChips(); })));
+  $('optVoice').checked=S.voice; $('optAutoFace').checked=S.autoFace; $('optAutoPose').checked=S.autoPose;
+  $('optCredit').checked=S.credit; $('optWake').checked=S.wake; $('optHiq').checked=S.hiq;
+  $('optMirror').checked=S.mirror; $('optPreview').checked=S.preview; $('optBust').checked=S.bust;
+  $('optFlipX').checked=S.flipX; $('optFlipY').checked=S.flipY; $('optFlipZ').checked=S.flipZ;
+  fill('gainChips',[[.6,'움직임 작게'],[1,'움직임 보통'],[1.5,'움직임 크게']].map(([k,l])=>chip(l,S.gain===k,()=>{ S.gain=k; saveS(); refreshChips(); })));
+}
+function buildSheet(){ refreshChips(); }
+$('menuBtn').onclick=()=>{ $('say').hidden=true; $('sheet').hidden=!$('sheet').hidden; $('menuBtn').classList.toggle('on',!$('sheet').hidden); refreshChips(); };
+$('sheetClose').onclick=()=>{ $('sheet').hidden=true; $('menuBtn').classList.remove('on'); };
+const bindOpt=(id,key,after)=>$(id).addEventListener('change',e=>{ S[key]=e.target.checked; saveS(); after&&after(); });
+bindOpt('optVoice','voice'); bindOpt('optAutoFace','autoFace'); bindOpt('optAutoPose','autoPose'); bindOpt('optCredit','credit'); bindOpt('optHiq','hiq');
+bindOpt('optWake','wake',()=>applyWake());
+bindOpt('optMirror','mirror',()=>{ $('cam').classList.toggle('mirror',S.mirror); });
+bindOpt('optPreview','preview',()=>{ $('cam').hidden=!(trk.on&&S.preview); });
+bindOpt('optBust','bust',()=>fit());
+bindOpt('optFlipX','flipX'); bindOpt('optFlipY','flipY'); bindOpt('optFlipZ','flipZ');
+$('voiceTest').onclick=()=>{ unlockVoice(); say('안녕! 내 목소리 잘 들려?','웃음'); };
+$('resetPos').onclick=fit;
+$('repick').onclick=()=>$('zipIn').click();
+
+// ---------- typing: she reads what you write ----------
+$('sayBtn').onclick=()=>{ unlockVoice(); $('sheet').hidden=true; $('menuBtn').classList.remove('on');
+  const open=$('say').hidden; $('say').hidden=!open; $('sayBtn').classList.toggle('on',open); if(open) setTimeout(()=>$('sayIn').focus(),50); };
+$('say').addEventListener('submit',e=>{ e.preventDefault(); const t=$('sayIn').value.trim(); if(!t) return; $('sayIn').value=''; say(t,'웃음'); scheduleChatter(); });
+
+// ---------- study timer (25 min focus / 5 min rest) ----------
+let timer=null;
+function fmt(ms){ const s=Math.max(0,Math.ceil(ms/1000)); return String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0'); }
+function startPhase(kind){ timer={kind,end:Date.now()+(kind==='focus'?25:5)*60000}; $('timer').classList.toggle('rest',kind==='rest'); $('timerLabel').textContent=kind==='focus'?'집중':'휴식'; }
+$('timerBtn').onclick=()=>{
+  unlockVoice();
+  if(timer){ timer=null; $('timer').hidden=true; $('timerBtn').classList.remove('on'); const [m,t]=pick(TIMER_LINES.stop); say(t,m); applyWake(); return; }
+  startPhase('focus'); $('timer').hidden=false; $('timerBtn').classList.add('on'); const [m,t]=pick(TIMER_LINES.start); say(t,m); applyWake();
+};
+setInterval(()=>{
+  if(!timer) return; const left=timer.end-Date.now(); $('timerTime').textContent=fmt(left);
+  if(left<=0){ if(timer.kind==='focus'){ startPhase('rest'); const [m,t]=pick(TIMER_LINES.restStart); say(t,m); } else { startPhase('focus'); const [m,t]=pick(TIMER_LINES.restEnd); say(t,m); } }
+},500);
+
+// ---------- screen wake lock ----------
+let wakeLock=null;
+async function applyWake(){
+  const want=S.wake||!!timer;
+  try{
+    if(want&&!wakeLock&&'wakeLock' in navigator){ wakeLock=await navigator.wakeLock.request('screen'); wakeLock.addEventListener('release',()=>{ wakeLock=null; }); }
+    if(!want&&wakeLock){ await wakeLock.release(); wakeLock=null; }
+  }catch(e){ wakeLock=null; }
+}
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='visible') applyWake(); });
+
+// ---------- background ----------
+function applyBg(){ $('stage').className=S.bg; drawStars(); }
+function drawStars(){
+  const c=$('stars'), r=$('stage').getBoundingClientRect(), dpr=Math.min(devicePixelRatio||1,2);
+  c.width=r.width*dpr; c.height=r.height*dpr; const g=c.getContext('2d'); g.scale(dpr,dpr); g.clearRect(0,0,r.width,r.height);
+  let seed=11; const R=()=>(seed=(seed*16807)%2147483647)/2147483647;
+  for(let i=0;i<140;i++){ g.globalAlpha=.2+R()*.6; g.fillStyle=R()<.2?'#9ff3ee':'#ffffff'; g.beginPath(); g.arc(R()*r.width,R()*r.height*.8,R()*1.5+.3,0,7); g.fill(); }
+}
+
+// ---------- camera face tracking (MediaPipe Face Landmarker, runs on this iPad) ----------
+const MP_VER='0.10.14';
+const trk={ on:false, lm:null, stream:null, lastSeen:-1e9, lastT:-1, calib:null, needCalib:0,
+  raw:null, f:{ax:0,ay:0,az:0,ex:0,ey:0,eyeL:1,eyeR:1,mouth:0,smile:.5,brL:0,brR:0} };
+function trackWeight(now){ if(!trk.on) return 0; const lost=now-trk.lastSeen; return lost<300?1:lost>1300?0:1-(lost-300)/1000; }
+function camMsg(t,ok){ const el=$('camState'); el.hidden=!t; el.textContent=t||''; el.classList.toggle('ok',!!ok); }
+
+// rotation matrix (column-major 4x4) -> yaw / pitch / roll in degrees
+function eulerFromMatrix(m){
+  const r=(row,col)=>m[col*4+row];
+  const yaw=Math.asin(clamp(r(0,2),-1,1));
+  const pitch=Math.atan2(-r(1,2),r(2,2));
+  const roll=Math.atan2(-r(0,1),r(0,0));
+  const d=180/Math.PI; return {yaw:yaw*d,pitch:pitch*d,roll:roll*d};
+}
+// blendshapes + head angles -> model parameters (pure function, also used for testing)
+function faceToParams(bs, ang, opt){
+  const b=n=>bs[n]||0, g=opt.gain||1, mir=opt.mirror?-1:1;
+  const sx=(opt.flipX?-1:1)*mir, sy=opt.flipY?-1:1, sz=(opt.flipZ?-1:1)*mir;
+  const ax=clamp(ang.yaw*sx*1.2*g,-30,30), ay=clamp(ang.pitch*sy*1.4*g,-30,30), az=clamp(ang.roll*sz*g,-30,30);
+  // user's own left/right eye -> the model's eye on the same side of the screen
+  const openOf=(blink,wide)=>clamp(1-(blink-.18)/.42,0,1)+clamp(wide-.2,0,.6)*.6;
+  const uL=openOf(b('eyeBlinkLeft'),b('eyeWideLeft')), uR=openOf(b('eyeBlinkRight'),b('eyeWideRight'));
+  const eyeL=opt.mirror?uR:uL, eyeR=opt.mirror?uL:uR;
+  const gazeUserLeft=((b('eyeLookOutLeft')+b('eyeLookInRight'))-(b('eyeLookInLeft')+b('eyeLookOutRight')))/2;
+  const ex=clamp(gazeUserLeft*2.2*sx,-1,1), ey=clamp((b('eyeLookUpLeft')+b('eyeLookUpRight')-b('eyeLookDownLeft')-b('eyeLookDownRight'))*1.4,-1,1);
+  const mouth=clamp((b('jawOpen')-.04)*2.2,0,1);
+  const smile=clamp(((b('mouthSmileLeft')+b('mouthSmileRight'))/2)*2.4-(b('mouthFrownLeft')+b('mouthFrownRight'))*.8-.1,-1,1);
+  const browU=n=>clamp(b('browInnerUp')*.8+b('browOuterUp'+n)*.8-b('browDown'+n)*1.4,-1,1);
+  const brL=opt.mirror?browU('Right'):browU('Left'), brR=opt.mirror?browU('Left'):browU('Right');
+  return {ax,ay,az,ex,ey,eyeL,eyeR,mouth,smile,brL,brR};
+}
+async function startCam(){
+  if(trk.on) return stopCam();
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){ say('이 브라우저에선 카메라를 못 써. 사파리로 https 주소에서 열어줘!','슬픔'); return; }
+  $('camBtn').classList.add('on'); camMsg('카메라 켜는 중…');
+  try{
+    trk.stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:640},height:{ideal:480}},audio:false});
+  }catch(e){ $('camBtn').classList.remove('on'); camMsg(''); say('카메라 허락이 안 됐어. 설정 → Safari → 카메라에서 허용해줘!','슬픔'); return; }
+  const v=$('cam'); v.srcObject=trk.stream; v.classList.toggle('mirror',S.mirror); await v.play().catch(()=>{});
+  trk.on=true; v.hidden=!S.preview; fit(); applyWake();
+  if(!trk.lm){
+    camMsg('얼굴 인식 준비 중… (처음 한 번은 조금 걸려요)');
+    try{
+      const mp=await import(`https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${MP_VER}/vision_bundle.mjs`);
+      const files=await mp.FilesetResolver.forVisionTasks(`https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${MP_VER}/wasm`);
+      const opts=d=>({ baseOptions:{ modelAssetPath:'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task', delegate:d },
+        runningMode:'VIDEO', numFaces:1, outputFaceBlendshapes:true, outputFacialTransformationMatrixes:true });
+      try{ trk.lm=await mp.FaceLandmarker.createFromOptions(files,opts('GPU')); }
+      catch(e){ trk.lm=await mp.FaceLandmarker.createFromOptions(files,opts('CPU')); }
+    }catch(e){ console.error(e); camMsg('얼굴 인식 프로그램을 못 불러왔어요. 인터넷 연결을 확인해 주세요.'); return; }
+  }
+  trk.needCalib=12; camMsg('얼굴 찾는 중…');
+  loopTrack();
+}
+function stopCam(){
+  trk.on=false; $('camBtn').classList.remove('on'); camMsg('');
+  if(trk.stream){ trk.stream.getTracks().forEach(t=>t.stop()); trk.stream=null; }
+  $('cam').hidden=true; $('cam').srcObject=null; fit(); applyWake();
+}
+let calibAcc=null;
+function loopTrack(){
+  if(!trk.on) return;
+  const v=$('cam');
+  if(trk.lm && v.readyState>=2 && v.currentTime!==trk.lastT){
+    trk.lastT=v.currentTime;
+    let res=null; try{ res=trk.lm.detectForVideo(v,performance.now()); }catch(e){}
+    if(res&&res.faceBlendshapes&&res.faceBlendshapes.length&&res.facialTransformationMatrixes&&res.facialTransformationMatrixes.length){
+      const bs={}; for(const c of res.faceBlendshapes[0].categories) bs[c.categoryName]=c.score;
+      let ang=eulerFromMatrix(res.facialTransformationMatrixes[0].data);
+      if(trk.needCalib>0){ calibAcc=calibAcc||{yaw:0,pitch:0,roll:0,n:0}; calibAcc.yaw+=ang.yaw; calibAcc.pitch+=ang.pitch; calibAcc.roll+=ang.roll; calibAcc.n++;
+        if(--trk.needCalib===0){ trk.calib={yaw:calibAcc.yaw/calibAcc.n,pitch:calibAcc.pitch/calibAcc.n,roll:calibAcc.roll/calibAcc.n}; calibAcc=null; } }
+      if(trk.calib) ang={yaw:ang.yaw-trk.calib.yaw,pitch:ang.pitch-trk.calib.pitch,roll:ang.roll-trk.calib.roll};
+      const p=faceToParams(bs,ang,S), f=trk.f;
+      const k=(a,b,s)=>a+(b-a)*s;   // light smoothing; eyes and mouth react faster than the head
+      f.ax=k(f.ax,p.ax,.45); f.ay=k(f.ay,p.ay,.45); f.az=k(f.az,p.az,.45); f.ex=k(f.ex,p.ex,.5); f.ey=k(f.ey,p.ey,.5);
+      f.eyeL=k(f.eyeL,p.eyeL,.7); f.eyeR=k(f.eyeR,p.eyeR,.7); f.mouth=k(f.mouth,p.mouth,.6); f.smile=k(f.smile,p.smile,.35);
+      f.brL=k(f.brL,p.brL,.4); f.brR=k(f.brR,p.brR,.4);
+      if(performance.now()-trk.lastSeen>1500) camMsg('따라하는 중',true);
+      trk.lastSeen=performance.now();
+    } else if(performance.now()-trk.lastSeen>1500) camMsg('얼굴 찾는 중…');
+  }
+  requestAnimationFrame(loopTrack);
+}
+$('camBtn').onclick=()=>{ unlockVoice(); startCam(); };
+$('calib').onclick=()=>{ if(trk.on){ trk.needCalib=12; calibAcc=null; say('좋아, 지금 자세를 정면으로 맞출게!','웃음'); } else say('카메라를 먼저 켜줘!','보통'); };
+document.addEventListener('visibilitychange',()=>{ if(document.visibilityState==='hidden'&&trk.on) stopCam(); });
+
+// ---------- start ----------
+$('pickBtn').onclick=()=>{ unlockVoice(); $('zipIn').click(); };
+$('zipIn').addEventListener('change',async e=>{
+  const f=e.target.files[0]; e.target.value=''; if(!f) return;
+  $('sheet').hidden=true; $('menuBtn').classList.remove('on');
+  saveZip(f); startModel(f);
+});
+applyBg();
+(async()=>{
+  if(!window.PIXI||!PIXI.live2d||!window.JSZip){ msg('필요한 파일을 불러오지 못했어요. 인터넷 연결을 확인하고 새로고침해 주세요.',true); return; }
+  const saved=await loadZip();
+  if(saved){ msg('저번에 고른 모델을 여는 중…'); startModel(saved); }
+  applyWake();
+})();
+</script>
+</body>
+</html>
