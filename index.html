@@ -249,6 +249,7 @@ const TIMER_LINES={
 const S = { mode:'auto', autoFace:true, autoPose:true, voice:true, credit:true, wake:false, hiq:false, chatter:6, bg:'bg-night',
   mirror:true, preview:true, bust:true, flipX:false, flipY:false, flipZ:false, gain:1 };
 try{ Object.assign(S, JSON.parse(localStorage.getItem('mikuCam')||'{}')); }catch(e){}
+if((S.v||1)<2){ S.flipY=false; S.v=2; try{ localStorage.setItem('mikuCam', JSON.stringify(S)); }catch(e){} }
 function saveS(){ try{ localStorage.setItem('mikuCam', JSON.stringify(S)); }catch(e){} }
 
 // ---------- model zip kept on this iPad (IndexedDB) ----------
@@ -613,7 +614,7 @@ function eulerFromMatrix(m){
 // blendshapes + head angles -> model parameters (pure function, also used for testing)
 function faceToParams(bs, ang, opt){
   const b=n=>bs[n]||0, g=opt.gain||1, mir=opt.mirror?-1:1;
-  const sx=(opt.flipX?-1:1)*mir, sy=opt.flipY?-1:1, sz=(opt.flipZ?-1:1)*mir;
+  const sx=(opt.flipX?-1:1)*mir, sy=opt.flipY?1:-1, sz=(opt.flipZ?-1:1)*mir;   // pitch: MediaPipe + = chin down, Live2D + = look up
   const ax=clamp(ang.yaw*sx*1.2*g,-30,30), ay=clamp(ang.pitch*sy*1.4*g,-30,30), az=clamp(ang.roll*sz*g,-30,30);
   // user's own left/right eye -> the model's eye on the same side of the screen
   const openOf=(blink,wide)=>clamp(1-(blink-.18)/.42,0,1)+clamp(wide-.2,0,.6)*.6;
